@@ -33,7 +33,8 @@ namespace temple
 		// temple input output
 		public static int Main (string[] args)
 		{
-			string output, input;
+			string output = null;
+			string input = null;
 			switch (args.Length) {
 			case 2:
 				input = args [0];
@@ -41,18 +42,21 @@ namespace temple
 				break;
 			case 1:
 				input = args [0];
-				output = Path.GetDirectoryName (input);
-				if (output.Length > 0) {
-					output += "/";
-				}
-				output += Path.GetFileNameWithoutExtension (input);
 				break;
-			default:
-				Console.Error.WriteLine ("Invalid arguments.");
-				return -1;
 			}
 
-			string src = File.ReadAllText (input);
+			string src;
+			if (input != null) {
+				src = File.ReadAllText (input);
+			} else {
+				StringBuilder source = new StringBuilder ();
+				string s;
+				while ((s = Console.ReadLine()) != null)
+				{
+					source.AppendLine (s);
+				}
+				src = source.ToString ();
+			}
 
 			string temp = rgxVariableReplacement.Replace (src, (match) => {
 				return "<? print(" + match.Groups["var"].Value + "); ?>";
@@ -67,21 +71,24 @@ namespace temple
 			writer.Append ("print = io.write;");
 			writer.Append (dst);
 
-			File.WriteAllText (output + ".lua", writer.ToString());
-
-			Process proc = Process.Start (new ProcessStartInfo("lua", output + ".lua") {
+			var proc = Process.Start (new ProcessStartInfo("lua", "-") {
 				RedirectStandardOutput = true,
+				RedirectStandardInput = true,
 				UseShellExecute = false
 			});
+			proc.StandardInput.Write(writer.ToString());
+			proc.StandardInput.Close ();
 			proc.WaitForExit ();
 			if (proc.ExitCode != 0) {
-				File.Delete (output + ".lua");
 				return proc.ExitCode;
 			}
 
-			File.WriteAllText(output, proc.StandardOutput.ReadToEnd ());
-
-			File.Delete (output + ".lua");
+			string result = proc.StandardOutput.ReadToEnd ();
+			if (output != null) {
+				File.WriteAllText (output, result);
+			} else {
+				Console.Out.Write (result);
+			}
 
 			return 0;
 		}
